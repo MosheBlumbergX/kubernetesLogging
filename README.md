@@ -2,12 +2,19 @@
 
 End‑to‑end guide for sending **Confluent for Kubernetes (CFK) Kafka Connect pod logs** from **Kubernetes** to **Splunk** using the **Splunk OpenTelemetry Collector for Kubernetes**.
 
-## Target Platform
+## Table of Contents
 
-- **Kubernetes** cluster
-- **CFK** already deployed and managing a **Connect** cluster
-- `kubectl` configured for the Kubernetes cluster
-- `helm` v3.9+ installed
+- [1. Overview](#1-overview)
+- [2. Prerequisites](#2-prerequisites)
+- [3. Splunk Setup](#3-splunk-setup)
+- [4. Install Splunk OTel Collector on Kubernetes](#4-install-splunk-otel-collector-on-kubernetes)
+- [5. Deploy Confluent Platform](#5-deploy-confluent-platform)
+- [6. Validation](#6-validation)
+- [7. Troubleshooting](#7-troubleshooting)
+- [8. Cleanup](#8-cleanup)
+- [9. Summary](#9-summary)
+- [10. Additional Notes](#10-additional-notes)
+- [11. References](#11-references)
 
 ---
 
@@ -42,7 +49,6 @@ Centralize Kafka Connect logs from CFK‑managed clusters into Splunk, with:
 ### Platform
 
 - **Kubernetes** cluster
-- **CFK** already deployed and managing a **Connect** cluster
 - `kubectl` configured for the Kubernetes cluster
 - `helm` v3.9+ installed
 
@@ -51,20 +57,23 @@ Centralize Kafka Connect logs from CFK‑managed clusters into Splunk, with:
 - Splunk **Cloud** or **Enterprise**
 - A **HEC (HTTP Event Collector) endpoint** reachable from Kubernetes:
   - Example: `https://splunk.example.com:8088/services/collector`
-- A **HEC token** for Kubernetes logs
-- A **log index** for CFK logs, e.g. `cfk_connect_logs`
+- A **HEC token** for Kubernetes logs (steps provided)
+- A **log index** for CFK logs, e.g. `k8s_logs`
 
-
-### Considerations
+### How It Works
 
 - The Splunk OTel Collector is a DaemonSet that runs on every node in the cluster.
-- The Splunk OTel Collector will tail all container logs by default and send to Splunk via HEC.
-- The Splunk OTel Collector will use the `splunkPlatform.endpoint` and `splunkPlatform.token` to authenticate to the Splunk HEC endpoint.
-- The Splunk OTel Collector will use the `splunkPlatform.index` to send the logs to the Splunk index.
-- The Splunk OTel Collector will use the `splunkPlatform.insecureSkipVerify` to skip certificate verification if the Splunk HEC endpoint is using a self-signed certificate.
-- Consider using Index type 'json' or '_json' for the index to automatically parse the logs into fields.
+- It tails all container logs by default and sends them to Splunk via HEC.
+- It uses the `splunkPlatform.endpoint` and `splunkPlatform.token` to authenticate to the Splunk HEC endpoint.
+- It uses the `splunkPlatform.index` to route logs to the correct Splunk index.
+- Set `splunkPlatform.insecureSkipVerify` to skip certificate verification if the HEC endpoint uses a self-signed certificate.
+
+### Tips
+
+- Consider using index type `_json` for the index to automatically parse logs into fields.
 - Configure Confluent's CRs to emit JSON logs that are easier to parse in Splunk via Log4j2 configuration overrides.
-- A basic confluent platform deployment with Connect, Kafka, KsqlDB, and Control Center is available in `confluent-platform-c3++.yaml`, with Connect configured to emit JSON logs.
+- A basic Confluent Platform deployment with Connect, Kafka, KsqlDB, and Control Center is available in `confluent-platform.yaml`, with all components configured to emit JSON logs.
+
 ---
 
 ## 3. Splunk Setup
@@ -75,19 +84,21 @@ You can use either an existing Splunk Cloud/Enterprise deployment or spin up a *
 
 1. Go to the **Splunk Cloud Platform trial** page: https://www.splunk.com/en_us/download/splunk-cloud.html
 2. Sign up (no credit card required) and create your trial instance (14 days, up to 5 GB/day ingest).
-3. **Create index** (if not existing), e.g. `cfk_connect_logs`.
+3. **Create index** (if not existing), e.g. `k8s_logs`.
 4. When the instance is ready, open **Settings → Data Inputs → HTTP Event Collector (HEC)**.
 5. Create a **new HEC token**, note:
-   - **Token value** (you’ll paste it into `values.yaml`)
+   - **Token value** (you'll paste it into `splunkValues.yaml`)
    - **HEC endpoint**, typically `https://<your-instance>.splunkcloud.com:8088/services/collector`
+   - **Data type**, typically `_json`
 
 ### 3.2 Index and HEC token
 
 For any Splunk deployment (trial or existing):
 
-1. **Create index** (if not existing), e.g. `cfk_connect_logs`.
+1. **Create index** (if not existing), e.g. `k8s_logs`.
 2. **Create HEC token**:
-   - Set default index to `cfk_connect_logs` or rely on index routing later.
+   - Set default index to `k8s_logs` or rely on index routing later.
+   - **Data type**, typically `_json`
 3. Note the values for the collector config:
    - **Endpoint**: `https://<hec-host>:8088/services/collector`
    - **Token**: `<hec-token>`
@@ -112,8 +123,35 @@ kubectl create namespace observability
 ```
 
 ### 4.3 Create `splunkValues.yaml`
- 
-From the template `splunkValuesTemplate.yaml` create `splunkValues.yaml` with the minimum needed config, fill in the values for the Splunk endpoint, token, and index.
+
+Copy the template `splunkValuesTemplate.yaml` to `splunkValues.yaml` and fill in the placeholder values:
+
+```yaml
+# Arbitrary cluster name; surfaces as k8s.cluster.name in Splunk
+clusterName: k8s-cfk
+
+# Tell the chart we're on AKS (helps with some defaults)
+distribution: aks
+
+splunkPlatform:
+  endpoint: "https://Splunk-Endpoint:8088/services/collector"
+  token: "Token from Splunk"
+  index: "Index from Splunk"
+  insecureSkipVerify: true  # TODO: fix server cert; only use in non-prod
+
+logsCollection:
+  containers:
+    enabled: true  # collect container stdout/stderr logs
+```
+
+| Field | Description |
+|-------|-------------|
+| `clusterName` | Arbitrary name that appears as `k8s.cluster.name` in Splunk |
+| `distribution` | Kubernetes distribution hint (`aks`, `eks`, `gke`, or omit for generic) |
+| `splunkPlatform.endpoint` | Full HEC URL from Section 3 |
+| `splunkPlatform.token` | HEC token from Section 3 |
+| `splunkPlatform.index` | Default Splunk index for logs |
+| `splunkPlatform.insecureSkipVerify` | Set `true` only for self-signed certs in non-prod |
 
 ### 4.4 Install the chart
 
@@ -128,66 +166,35 @@ This deploys:
 - **DaemonSet** agents on every node
 - Agents tail **all container logs** by default and send to Splunk via HEC
 
+After the chart is installed, verify the agents are running: [6.1 Check OTel agents](#61-check-otel-agents).
+
 ---
 
-## 5. Route Only CFK / Connect Logs
+## 5. Deploy Confluent Platform
 
-Assumptions:
-
-- CFK is running in namespace `confluent`
-- Connect CR is `connect` in that namespace (adjust names as needed)
-
-You can either:
-
-- Route **all CFK logs** to the Splunk index, or
-- Route **only Connect pods**.
-
-### 5.1 Option A – All CFK logs from the `confluent` namespace
-
-Annotate the namespace with the desired Splunk index:
+Create a namespace for Confluent Platform and annotate it with the desired Splunk index.
 
 ```bash
-kubectl annotate namespace confluent splunk.com/index=cfk_connect_logs
+kubectl create namespace confluent \
+  && kubectl annotate namespace confluent splunk.com/index="k8s_logs"
 ```
 
-Result:
+Install the Confluent Operator Chart from Confluent's Helm repo.
+```bash
+helm repo add confluentinc https://packages.confluent.io/helm/charts
+helm repo update
+helm install confluent-operator confluentinc/confluent-for-kubernetes --namespace confluent
+```
 
-- All pods in `confluent` namespace have their logs sent to `cfk_connect_logs`.
+Deploy the Confluent Platform using the `confluent-platform.yaml` file.
 
-### 5.2 Option B – Only Connect pods
+```bash
+kubectl apply -f confluent-platform.yaml
+```
 
-1. **Exclude the whole namespace by default:**
-
-   ```bash
-   kubectl annotate namespace confluent splunk.com/exclude=true
-   ```
-
-2. **Include only Connect pods and set index:**
-
-   Annotate the StatefulSet created by CFK to include the Connect pods and set the index.
-
-   ```bash
-   kubectl annotate statefulset <statefulset-name> -n confluent \
-     splunk.com/include=true \
-     splunk.com/index=<index-name>
-   ```
-
----
-
-## 6. (Optional) Make Connect Logs JSON-Friendly
-
-CFK lets you override **Log4j2** configuration for Connect. Use this to emit JSON logs that are easier to parse in Splunk.
-
-In your Connect CR (example):
+Notice that the `confluent-platform.yaml` contains the Log4j2 configuration overrides to emit JSON logs that are easier to parse in Splunk.
 
 ```yaml
-apiVersion: platform.confluent.io/v1beta1
-kind: Connect
-metadata:
-  name: connect
-  namespace: confluent
-spec:
-  configOverrides:
     log4j2:
       Configuration:
         Appenders:
@@ -196,33 +203,23 @@ spec:
               Pattern: '{"severity":"%level","timestamp":"%d{yyyy-MM-dd''T''HH:mm:ss.SSSXXX}","textPayload":"%encode{%X{connector.context}%message%n%ex{full}}{JSON}","sourceLocation":{"file":"%encode{%F}{JSON}","line":"%L","function":"%encode{%c}{JSON}"},"thread":"%encode{%t}{JSON}"}%n'
             name: stdout
             target: SYSTEM_OUT
-        Loggers:
-          Logger:
-          - AppenderRef:
-            - ref: stdout
-            level: WARN
-            name: kafka.authorizer.logger
-          Root:
-            AppenderRef:
-            - ref: stdout
-            level: INFO
-        name: Log4j2
-        status: warn
 ```
 
-Apply:
+This will emit logs in the following format:
 
-```bash
-kubectl apply -f connect.yaml
+```json
+{"severity":"INFO","timestamp":"2026-03-16T13:46:11.435Z","textPayload":"Registered loader: jdk.internal.loader.ClassLoaders$AppClassLoader@7b98f307\n","sourceLocation":{"file":"PluginScanner.java","line":"80","function":"org.apache.kafka.connect.runtime.isolation.PluginScanner"},"thread":"main"}
 ```
+  
+Result:
 
-After restart/rolling update, Connect pods will emit JSON lines; Splunk can auto-extract fields or you can add field extractions.
+- All pods in `confluent` namespace have their logs sent to `k8s_logs`.
 
 ---
 
-## 7. Validation
+## 8. Validation
 
-### 7.1 Check OTel agents
+### 8.1 Check OTel agents
 
 ```bash
 kubectl -n observability get pods -l app=splunk-otel-collector
@@ -231,21 +228,21 @@ kubectl -n observability logs -l app=splunk-otel-collector | head
 
 Verify there are no repeated HEC errors.
 
-### 7.2 Check Connect pods
+### 8.2 Check Connect pods
 
 ```bash
 kubectl -n confluent get pods -l "platform.confluent.io/type=connect" -o wide
-kubectl -n confluent logs <one-connect-pod> | head
+kubectl -n confluent logs <one-connect-pod> | tail
 ```
 
 Confirm logs are flowing and in the expected format (plain text or JSON).
 
-### 7.3 Verify in Splunk
+### 8.3 Verify in Splunk
 
 In Splunk Search:
 
 ```spl
-index=cfk_connect_logs k8s.cluster.name=Kubernetes-cfk-prod
+index=k8s_logs k8s.cluster.name=k8s-cfk
 ```
 
 You should see events with fields like:
@@ -255,15 +252,39 @@ You should see events with fields like:
 - `k8s.pod.name`
 - `k8s.container.name`
 
-To narrow to Connect:
+To narrow to Confluent Platform:
 
 ```spl
-index=cfk_connect_logs k8s.namespace.name=confluent "org.apache.kafka.connect"
+index=k8s_logs k8s.namespace.name=confluent
+```
+
+To view the logs of a specific pod:
+
+```spl
+index=k8s_logs k8s.pod.name=kafka-0
+```
+
+To view the logs of a specific container:
+
+```spl
+index=k8s_logs k8s.container.name=kafka
+```
+
+Viewing as a table:
+
+```spl
+index=k8s_logs k8s.pod.name=kafka-0 | table timestamp, severity, "sourceLocation.file", "sourceLocation.line", thread, textPayload
+```
+
+Viewing as a time series:
+
+```spl
+index=k8s_logs k8s.pod.name=kafka-0 | timechart count by severity
 ```
 
 ---
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 ### No data in Splunk
 
@@ -311,7 +332,7 @@ index=cfk_connect_logs k8s.namespace.name=confluent "org.apache.kafka.connect"
 
 ---
 
-## 9. Cleanup
+## 10. Cleanup
 
 To remove the collector:
 
@@ -320,7 +341,7 @@ helm -n observability uninstall splunk-otel
 kubectl delete namespace observability
 ```
 
-(Only delete the namespace if it’s dedicated to observability and not shared.)
+(Only delete the namespace if it's dedicated to observability and not shared.)
 
 To remove annotations (example):
 
@@ -331,15 +352,49 @@ kubectl annotate deployment connect -n confluent splunk.com/include- splunk.com/
 
 The `-` suffix removes an annotation key.
 
+To remove the Confluent Platform:
+
+```bash
+kubectl delete -f confluent-platform.yaml
+kubectl delete namespace confluent
+```
+
 ---
 
-## 10. Summary
+## 9. Summary
 
 You now have:
 
-- CFK‑managed **Connect** pods on Kubernetes emitting logs to stdout
+- CFK‑managed Confluent Platform on Kubernetes emitting logs to stdout
 - A Splunk **OpenTelemetry Collector** DaemonSet tailing container logs
 - **Index‑aware routing** and include/exclude control via annotations
 - Optional JSON logging for better Splunk field extraction
 
 This setup is reusable for other CFK components (Kafka, SR, ksqlDB, etc.) by adjusting namespace and annotations accordingly.
+The Confluent Operator Chart is used to deploy the Confluent Platform.
+
+---
+
+## 10. Additional Notes
+
+### Collect logs from all containers in the namespace to flat files
+
+The following command collects logs from all containers in the namespace to flat files in the current directory.
+
+```bash
+for pod in $(kubectl -n confluent get pods -o jsonpath='{.items[*].metadata.name}'); do
+  kubectl -n confluent logs "$pod" --all-containers > "${pod}.log" 2>&1 \
+    && echo "Saved ${pod}.log ($(wc -l < "${pod}.log") lines)"
+done
+```
+
+You can check the output of the logs (end of file) to verify they are in JSON format.
+
+---
+
+## 11. References
+
+- [Splunk OpenTelemetry Collector for Kubernetes](https://github.com/signalfx/splunk-otel-collector-chart)
+- [Confluent for Kubernetes](https://docs.confluent.io/operator/current/overview.html)
+- [Confluent Platform on Kubernetes](https://docs.confluent.io/platform/current/installation/configuration/kubernetes/deploy-and-manage.html)
+- [Confluent Platform CRDs](https://docs.confluent.io/platform/current/installation/configuration/kubernetes/crd-reference.html)

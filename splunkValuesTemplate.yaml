@@ -1,5 +1,5 @@
 # Arbitrary cluster name; surfaces as k8s.cluster.name in Splunk
-clusterName: k8s-cfk-prod
+clusterName: k8s-cfk
 
 # Tell the chart we're on AKS (helps with some defaults)
 distribution: aks
