@@ -356,6 +356,7 @@ To remove the Confluent Platform:
 
 ```bash
 kubectl delete -f confluent-platform.yaml
+helm uninstall confluent-operator --namespace confluent
 kubectl delete namespace confluent
 ```
 
