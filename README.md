@@ -397,5 +397,3 @@ You can check the output of the logs (end of file) to verify they are in JSON fo
 
 - [Splunk OpenTelemetry Collector for Kubernetes](https://github.com/signalfx/splunk-otel-collector-chart)
 - [Confluent for Kubernetes](https://docs.confluent.io/operator/current/overview.html)
-- [Confluent Platform on Kubernetes](https://docs.confluent.io/platform/current/installation/configuration/kubernetes/deploy-and-manage.html)
-- [Confluent Platform CRDs](https://docs.confluent.io/platform/current/installation/configuration/kubernetes/crd-reference.html)
