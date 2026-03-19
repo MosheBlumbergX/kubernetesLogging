@@ -166,7 +166,7 @@ This deploys:
 - **DaemonSet** agents on every node
 - Agents tail **all container logs** by default and send to Splunk via HEC
 
-After the chart is installed, verify the agents are running: [6.1 Check OTel agents](#61-check-otel-agents).
+After the chart is installed, verify the agents are running: [8.1 Check OTel agents](#81-check-otel-agents).
 
 ---
 
