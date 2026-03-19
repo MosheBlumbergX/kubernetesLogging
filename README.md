@@ -166,7 +166,7 @@ This deploys:
 - **DaemonSet** agents on every node
 - Agents tail **all container logs** by default and send to Splunk via HEC
 
-After the chart is installed, verify the agents are running: [8.1 Check OTel agents](#81-check-otel-agents).
+After the chart is installed, verify the agents are running: [6.1 Check OTel agents](#61-check-otel-agents).
 
 ---
 
@@ -217,9 +217,9 @@ Result:
 
 ---
 
-## 8. Validation
+## 6. Validation
 
-### 8.1 Check OTel agents
+### 6.1 Check OTel agents
 
 ```bash
 kubectl -n observability get pods -l app=splunk-otel-collector
@@ -228,7 +228,7 @@ kubectl -n observability logs -l app=splunk-otel-collector | head
 
 Verify there are no repeated HEC errors.
 
-### 8.2 Check Connect pods
+### 6.2 Check Connect pods
 
 ```bash
 kubectl -n confluent get pods -l "platform.confluent.io/type=connect" -o wide
@@ -237,7 +237,7 @@ kubectl -n confluent logs <one-connect-pod> | tail
 
 Confirm logs are flowing and in the expected format (plain text or JSON).
 
-### 8.3 Verify in Splunk
+### 6.3 Verify in Splunk
 
 In Splunk Search:
 
@@ -284,7 +284,7 @@ index=k8s_logs k8s.pod.name=kafka-0 | timechart count by severity
 
 ---
 
-## 9. Troubleshooting
+## 7. Troubleshooting
 
 ### No data in Splunk
 
@@ -332,7 +332,7 @@ index=k8s_logs k8s.pod.name=kafka-0 | timechart count by severity
 
 ---
 
-## 10. Cleanup
+## 8. Cleanup
 
 To remove the collector:
 
