@@ -1,6 +1,6 @@
-# CFK Connect Pod Logs to Splunk on Kubernetes
+# CFK Platform Logs to Splunk on Kubernetes
 
-End‑to‑end guide for sending **Confluent for Kubernetes (CFK) Kafka Connect pod logs** from **Kubernetes** to **Splunk** using the **Splunk OpenTelemetry Collector for Kubernetes**.
+End‑to‑end guide for sending **Confluent for Kubernetes (CFK) Platform logs** from **Kubernetes** to **Splunk** using the **Splunk OpenTelemetry Collector for Kubernetes**.
 
 ## Table of Contents
 
